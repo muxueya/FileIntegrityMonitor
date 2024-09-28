@@ -57,6 +57,35 @@
             border: 1px solid #ccc;
         }
 
+        /* Interval input form */
+        .interval-container {
+            max-width: 820px;
+            margin: 0 auto 20px auto;
+            text-align: center;
+        }
+
+        .interval-input {
+            padding: 10px;
+            width: 100px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        #submit-interval {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #007bff;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        #submit-interval:hover {
+            background-color: #0056b3;
+        }
+
         /* Ensure the scrollbar is styled cleanly and stays within the container */
         #log-container::-webkit-scrollbar {
             width: 8px;
@@ -65,6 +94,15 @@
         #log-container::-webkit-scrollbar-thumb {
             background-color: #ccc;
             border-radius: 4px;
+        }
+
+        /* Style for the time container */
+        #time-container {
+            max-width: 800px;
+            margin: 20px auto;
+            text-align: center;
+            color: #333;
+            font-size: 16px;
         }
     </style>
 
@@ -107,10 +145,67 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('search-bar').addEventListener('input', fetchLogs);
         });
+
+        // Function to update the running time
+        function updateRunningTime() {
+            const timeContainer = document.getElementById('time-container');
+            const startTime = new Date();  // Track the time the page was loaded
+
+            // Update the time display every second
+            setInterval(() => {
+                const currentTime = new Date();
+                const elapsedTime = currentTime - startTime;  // Time difference in milliseconds
+
+                // Convert elapsed time to seconds, minutes, and hours
+                const seconds = Math.floor((elapsedTime / 1000) % 60);
+                const minutes = Math.floor((elapsedTime / (1000 * 60)) % 60);
+                const hours = Math.floor((elapsedTime / (1000 * 60 * 60)) % 24);
+
+                // Display the formatted time
+                timeContainer.textContent = `Program has been running for: ${hours}h ${minutes}m ${seconds}s`;
+            }, 1000);
+        }
+
+        // Function to update the interval by submitting the form (New Function Added)
+        function updateInterval(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const formData = new FormData(document.getElementById('interval-form'));
+            fetch('/update_interval', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(`Check interval updated to ${data.new_interval} seconds.`);
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Start the running time counter and attach interval form submission listener
+        document.addEventListener('DOMContentLoaded', () => {
+            updateRunningTime();
+
+            // Attach event listener to the interval form for updating the interval (New)
+            document.getElementById('interval-form').addEventListener('submit', updateInterval);
+        });
     </script>
 </head>
 <body>
     <h1>File Monitoring Dashboard</h1>
+
+    <!-- Interval input form (New) -->
+    <div class="interval-container">
+        <form id="interval-form">
+            <label for="interval-input">Set check interval (seconds):</label>
+            <input id="interval-input" name="interval" type="number" class="interval-input" min="1" value="60">
+            <button id="submit-interval" type="submit">Update Interval</button>
+        </form>
+    </div>
 
     <!-- Search container to filter logs, centered horizontally -->
     <div class="search-container">
@@ -120,6 +215,11 @@
     <!-- Log container where logs will be displayed -->
     <div id="log-container">
         <!-- Logs will be dynamically inserted here by the JavaScript -->
+    </div>
+
+    <!-- Time container to show how long the program has been running -->
+    <div id="time-container">
+        <!-- Time will be dynamically inserted here by the JavaScript -->
     </div>
 </body>
 </html>

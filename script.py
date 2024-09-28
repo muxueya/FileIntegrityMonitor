@@ -5,7 +5,7 @@ import time
 import sys
 import threading
 import logging
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 
 # Flask setup
 app = Flask(__name__)
@@ -135,6 +135,21 @@ def get_logs():
     except Exception as e:
         print(f"Error fetching logs: {e}")
         return jsonify([]), 500
+
+# API route to update the interval from the user input
+@app.route('/update_interval', methods=['POST'])
+def update_interval():
+    global CHECK_INTERVAL
+    try:
+        new_interval = int(request.form.get('interval'))  # Get the interval from the form
+        if new_interval > 0:
+            CHECK_INTERVAL = new_interval  # Update the global CHECK_INTERVAL
+            print(f"Check interval updated to {CHECK_INTERVAL} seconds.")
+            return jsonify({'status': 'success', 'new_interval': CHECK_INTERVAL}), 200
+        else:
+            return jsonify({'status': 'error', 'message': 'Interval must be greater than 0.'}), 400
+    except ValueError:
+        return jsonify({'status': 'error', 'message': 'Invalid interval value.'}), 400
 
 # Function to run the file monitoring in a separate thread
 def start_monitoring(monitor_dirs):
