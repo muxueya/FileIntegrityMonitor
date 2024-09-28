@@ -3,10 +3,13 @@ import hashlib
 import json
 import time
 import sys
+import threading
 
 # Configuration
 HASH_FILE = 'file_hashes.json'      # File to store the original hashes
 CHECK_INTERVAL = 60                 # Time interval between checks (in seconds)
+stop_monitoring = False             # Flag to stop monitoring
+
 
 # Function to calculate the SHA-256 hash of a file
 def calculate_hash(file_path):
@@ -72,8 +75,20 @@ def monitor_files(monitor_dirs):
     # Save current hashes for the next monitoring cycle
     save_hashes(current_hashes)
 
+# Function to stop monitoring via user input
+def listen_for_stop():
+    global stop_monitoring
+    while True:
+        user_input = input()
+        if user_input.lower() == 'stop':
+            stop_monitoring = True
+            print("Stopping monitoring...")
+            break
+
 # Main loop to monitor files at regular intervals
 def main():
+    global stop_monitoring
+
     # Get the directory to monitor from command line or prompt
     if len(sys.argv) > 1:
         monitor_dirs = sys.argv[1:]
@@ -93,13 +108,27 @@ def main():
         print("No directories provided for monitoring. Exiting...")
         return
 
+    # Ensure no duplicate directories are added
+    monitor_dirs = list(set(monitor_dirs))
+
     print(f"Monitoring directories: {monitor_dirs}")
     
+    # Start a thread to listen for the 'stop' command
+    stop_thread = threading.Thread(target=listen_for_stop)
+    stop_thread.daemon = True  # This ensures the thread exits when the main program exits
+    stop_thread.start()
+
     # Main monitoring loop
-    while True:
+    while not stop_monitoring:
         monitor_files(monitor_dirs)
-        print(f"Next check in {CHECK_INTERVAL} seconds...")
-        time.sleep(CHECK_INTERVAL)
+        
+        # Sleep in smaller intervals to check for the stop flag
+        total_sleep_time = 0
+        while total_sleep_time < CHECK_INTERVAL and not stop_monitoring:
+            time.sleep(1)  # Sleep for 1 second at a time
+            total_sleep_time += 1
+
+    print("Monitoring has been stopped.")
 
 if __name__ == "__main__":
     main()
