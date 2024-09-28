@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Monitoring Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        #log-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-left: 5px solid #007bff;
+            background-color: #f9f9f9;
+            transition: background-color 0.5s;
+        }
+
+        .log-entry.highlight {
+            background-color: #d4edda;
+        }
+
+        .search-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .search-bar {
+            padding: 10px;
+            width: 80%;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+    </style>
+
+    <script>
+        let lastLogLength = 0;
+
+        function fetchLogs() {
+            fetch('/logs')
+                .then(response => response.json())
+                .then(data => {
+                    let logContainer = document.getElementById('log-container');
+                    logContainer.innerHTML = ''; // Clear previous logs
+                    let searchTerm = document.getElementById('search-bar').value.toLowerCase();
+
+                    data.forEach((line, index) => {
+                        if (searchTerm && !line.toLowerCase().includes(searchTerm)) {
+                            return;  // Skip if it doesn't match the search term
+                        }
+
+                        let logEntry = document.createElement('div');
+                        logEntry.classList.add('log-entry');
+                        if (index >= lastLogLength) {
+                            logEntry.classList.add('highlight');  // Highlight new entries
+                        }
+                        logEntry.textContent = line;
+                        logContainer.appendChild(logEntry);
+                    });
+
+                    lastLogLength = data.length;  // Track the length of the log
+                });
+        }
+
+        setInterval(fetchLogs, 5000);  // Fetch logs every 5 seconds
+
+        // Event listener for search functionality
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('search-bar').addEventListener('input', fetchLogs);
+        });
+    </script>
+</head>
+<body>
+    <h1>File Monitoring Dashboard</h1>
+    <div class="search-container">
+        <input id="search-bar" type="text" class="search-bar" placeholder="Search logs..." />
+    </div>
+    <div id="log-container">
+        <!-- Logs will be displayed here -->
+    </div>
+</body>
+</html>

@@ -4,18 +4,32 @@ import json
 import time
 import sys
 import threading
-import logging  # Import logging module to log events
+import logging
+from flask import Flask, render_template, jsonify
+
+# Flask setup
+app = Flask(__name__)
 
 # Configuration
 HASH_FILE = 'file_hashes.json'      # File to store the original hashes
 CHECK_INTERVAL = 60                 # Time interval between checks (in seconds)
+LOG_FILE = 'file_changes.log'       # Log file to store file changes
 stop_monitoring = False             # Flag to stop monitoring
 
-# Setup the logger to log file changes
-# Logs will be written to 'file_changes.log', and the format will include a timestamp
-logging.basicConfig(filename='file_changes.log', 
-                    level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+# Create a logger for file changes (separate from Flask logs)
+file_logger = logging.getLogger('file_monitoring')
+file_logger.setLevel(logging.INFO)
+
+# Create a file handler for logging file changes
+file_handler = logging.FileHandler(LOG_FILE)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+
+# Add the handler to the logger
+file_logger.addHandler(file_handler)
+
+# Disable Flask's logging by disabling the default werkzeug logger
+log = logging.getLogger('werkzeug')
+log.disabled = True
 
 # Function to calculate the SHA-256 hash of a file
 def calculate_hash(file_path):
@@ -70,19 +84,19 @@ def monitor_files(monitor_dirs):
                 if file in saved_hashes:
                     if saved_hashes[file] != file_hash:
                         print(f"ALERT: {file} has been modified!")
-                        # Log the file modification with timestamp
-                        logging.info(f"File modified: {file}")
+                        # Log the file modification with timestamp (using file_logger)
+                        file_logger.info(f"File modified: {file}")
                 else:
                     print(f"New file detected: {file}")
-                    # Log the new file creation with timestamp
-                    logging.info(f"New file detected: {file}")
+                    # Log the new file creation with timestamp (using file_logger)
+                    file_logger.info(f"New file detected: {file}")
     
     # Check for deleted files
     for file in saved_hashes:
         if file not in current_hashes:
             print(f"ALERT: {file} has been deleted!")
-            # Log the file deletion with timestamp
-            logging.info(f"File deleted: {file}")
+            # Log the file deletion with timestamp (using file_logger)
+            file_logger.info(f"File deleted: {file}")
 
     # Save current hashes for the next monitoring cycle
     save_hashes(current_hashes)
@@ -96,13 +110,49 @@ def listen_for_stop():
             stop_monitoring = True
             print("Stopping monitoring...")
             # Log the stop monitoring event
-            logging.info("Monitoring stopped by user.")
+            file_logger.info("Monitoring stopped by user.")
             break
 
-# Main loop to monitor files at regular intervals
-def main():
-    global stop_monitoring
+# Web interface route to display the log file content
+@app.route('/')
+def dashboard():
+    try:
+        # Read the file_changes.log file and pass it to the template
+        with open(LOG_FILE, 'r') as log_file:
+            log_data = log_file.readlines()
+        return render_template('dashboard.html', logs=log_data)
+    except Exception as e:
+        print(f"Error rendering dashboard: {e}")
+        return "Error rendering dashboard.", 500
 
+# API route to fetch log data for real-time updates (for AJAX)
+@app.route('/logs')
+def get_logs():
+    try:
+        with open(LOG_FILE, 'r') as log_file:
+            log_data = log_file.readlines()
+        return jsonify(log_data)
+    except Exception as e:
+        print(f"Error fetching logs: {e}")
+        return jsonify([]), 500
+
+# Function to run the file monitoring in a separate thread
+def start_monitoring(monitor_dirs):
+    global stop_monitoring
+    # Main monitoring loop
+    while not stop_monitoring:
+        monitor_files(monitor_dirs)
+        
+        # Sleep in smaller intervals to check for the stop flag
+        total_sleep_time = 0
+        while total_sleep_time < CHECK_INTERVAL and not stop_monitoring:
+            time.sleep(1)  # Sleep for 1 second at a time
+            total_sleep_time += 1
+
+    print("Monitoring has been stopped.")
+
+# Main function to start both Flask and monitoring
+def main():
     # Get the directory to monitor from command line or prompt
     if len(sys.argv) > 1:
         monitor_dirs = sys.argv[1:]
@@ -128,24 +178,21 @@ def main():
     print(f"Monitoring directories: {monitor_dirs}")
     
     # Log the start of monitoring
-    logging.info(f"Started monitoring directories: {monitor_dirs}")
+    file_logger.info(f"Started monitoring directories: {monitor_dirs}")
+
+    # Start the monitoring in a separate thread
+    monitor_thread = threading.Thread(target=start_monitoring, args=(monitor_dirs,))
+    monitor_thread.daemon = True
+    monitor_thread.start()
 
     # Start a thread to listen for the 'stop' command
     stop_thread = threading.Thread(target=listen_for_stop)
     stop_thread.daemon = True  # This ensures the thread exits when the main program exits
     stop_thread.start()
 
-    # Main monitoring loop
-    while not stop_monitoring:
-        monitor_files(monitor_dirs)
-        
-        # Sleep in smaller intervals to check for the stop flag
-        total_sleep_time = 0
-        while total_sleep_time < CHECK_INTERVAL and not stop_monitoring:
-            time.sleep(1)  # Sleep for 1 second at a time
-            total_sleep_time += 1
-
-    print("Monitoring has been stopped.")
+    # Start Flask in the main thread
+    print("Starting Flask server at http://localhost:5000")
+    app.run(host='0.0.0.0', port=5000, threaded=True)
 
 if __name__ == "__main__":
     main()
