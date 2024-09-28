@@ -4,12 +4,18 @@ import json
 import time
 import sys
 import threading
+import logging  # Import logging module to log events
 
 # Configuration
 HASH_FILE = 'file_hashes.json'      # File to store the original hashes
 CHECK_INTERVAL = 60                 # Time interval between checks (in seconds)
 stop_monitoring = False             # Flag to stop monitoring
 
+# Setup the logger to log file changes
+# Logs will be written to 'file_changes.log', and the format will include a timestamp
+logging.basicConfig(filename='file_changes.log', 
+                    level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Function to calculate the SHA-256 hash of a file
 def calculate_hash(file_path):
@@ -64,13 +70,19 @@ def monitor_files(monitor_dirs):
                 if file in saved_hashes:
                     if saved_hashes[file] != file_hash:
                         print(f"ALERT: {file} has been modified!")
+                        # Log the file modification with timestamp
+                        logging.info(f"File modified: {file}")
                 else:
                     print(f"New file detected: {file}")
+                    # Log the new file creation with timestamp
+                    logging.info(f"New file detected: {file}")
     
     # Check for deleted files
     for file in saved_hashes:
         if file not in current_hashes:
             print(f"ALERT: {file} has been deleted!")
+            # Log the file deletion with timestamp
+            logging.info(f"File deleted: {file}")
 
     # Save current hashes for the next monitoring cycle
     save_hashes(current_hashes)
@@ -83,6 +95,8 @@ def listen_for_stop():
         if user_input.lower() == 'stop':
             stop_monitoring = True
             print("Stopping monitoring...")
+            # Log the stop monitoring event
+            logging.info("Monitoring stopped by user.")
             break
 
 # Main loop to monitor files at regular intervals
@@ -113,6 +127,9 @@ def main():
 
     print(f"Monitoring directories: {monitor_dirs}")
     
+    # Log the start of monitoring
+    logging.info(f"Started monitoring directories: {monitor_dirs}")
+
     # Start a thread to listen for the 'stop' command
     stop_thread = threading.Thread(target=listen_for_stop)
     stop_thread.daemon = True  # This ensures the thread exits when the main program exits
